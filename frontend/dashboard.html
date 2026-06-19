@@ -1032,22 +1032,40 @@
       </div>
 
       <div>
-        <div style="font-weight:600;font-size:13px;margin-bottom:6px;">Cloudflare Tunnel</div>
-        <div style="font-size:12px;color:var(--text-dim);margin-bottom:10px;">配置后可从外网访问 Dashboard。在 <a href="https://one.dash.cloudflare.com" target="_blank" style="color:var(--accent)">Cloudflare Zero Trust</a> 创建 Tunnel 获取 Token。</div>
+        <div style="font-weight:600;font-size:13px;margin-bottom:6px;">Cloudflare Tunnel <span style="font-weight:400;font-size:11px;color:var(--text-dim)">（从外网访问 Dashboard）</span></div>
+
+        <!-- Step-by-step guide -->
+        <details style="margin-bottom:12px;">
+          <summary style="font-size:12px;color:var(--accent);cursor:pointer;user-select:none;">如何获取 Token？点击查看步骤 ▸</summary>
+          <ol style="font-size:12px;color:var(--text-dim);line-height:1.9;padding-left:18px;margin-top:8px;">
+            <li>打开 <a href="https://one.dash.cloudflare.com" target="_blank" style="color:var(--accent)">Cloudflare Zero Trust</a> → Networks → Tunnels</li>
+            <li>点击 <b>Create a tunnel</b> → 选 <b>Cloudflared</b> → 给 Tunnel 起个名字</li>
+            <li>在 "Install connector" 页面，选 <b>Docker</b>，复制命令里 <code>--token</code> 后面那一长串字符（以 <code>eyJ</code> 开头）</li>
+            <li>把这串 Token 粘贴到下面输入框，点保存 → 启动</li>
+            <li>回到 Cloudflare，添加 Public Hostname：Domain 填你的域名，Service 填 <code>http://localhost:8000</code>（容器内端口）</li>
+          </ol>
+        </details>
+
+        <!-- Status indicator (top) -->
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;padding:8px 12px;background:var(--surface-solid);border-radius:8px;border:1px solid var(--border);">
+          <span id="tunnel-status-dot" style="width:10px;height:10px;border-radius:50%;background:var(--text-dim);flex-shrink:0;transition:background 0.3s;"></span>
+          <span id="tunnel-status-text" style="font-size:12px;color:var(--text-dim);flex:1;">未运行</span>
+          <button id="tunnel-toggle-btn" class="btn-primary" onclick="toggleTunnel()" style="padding:4px 12px;font-size:12px;">启动</button>
+        </div>
+
+        <!-- Error/log output -->
+        <div id="tunnel-error-box" style="display:none;margin-bottom:10px;padding:8px 10px;background:rgba(255,80,80,0.08);border:1px solid var(--negative);border-radius:8px;font-family:monospace;font-size:11px;color:var(--negative);white-space:pre-wrap;word-break:break-all;max-height:100px;overflow:auto;"></div>
+
+        <!-- Token input -->
         <div class="config-row">
-          <label>Token</label>
-          <input type="password" id="tunnel-token-input" placeholder="粘贴 Cloudflare Tunnel Token" style="flex:1;font-family:monospace;font-size:12px;" />
+          <label style="white-space:nowrap;">Tunnel Token</label>
+          <input type="password" id="tunnel-token-input" placeholder="eyJ... （从 Cloudflare 复制）" style="flex:1;font-family:monospace;font-size:12px;" />
         </div>
         <div style="display:flex;align-items:center;gap:10px;margin-top:8px;flex-wrap:wrap;">
           <label style="display:flex;align-items:center;gap:6px;font-size:12px;cursor:pointer;">
             <input type="checkbox" id="tunnel-autostart" /> 启动时自动连接
           </label>
-          <button class="btn-primary" onclick="saveTunnelToken()" style="padding:5px 12px;font-size:12px;">保存</button>
-          <button id="tunnel-toggle-btn" class="btn-primary" onclick="toggleTunnel()" style="padding:5px 12px;font-size:12px;">启动</button>
-        </div>
-        <div style="display:flex;align-items:center;gap:8px;margin-top:10px;">
-          <span id="tunnel-status-dot" style="width:8px;height:8px;border-radius:50%;background:var(--text-dim);display:inline-block;"></span>
-          <span id="tunnel-status-text" style="font-size:12px;color:var(--text-dim);">未运行</span>
+          <button class="btn-primary" onclick="saveTunnelToken()" style="padding:5px 12px;font-size:12px;">保存 Token</button>
         </div>
         <div id="tunnel-msg" style="margin-top:8px;font-size:12px;"></div>
       </div>
@@ -1101,6 +1119,7 @@
           <label>API Key</label>
           <input type="password" id="cfg-dehy-key" placeholder="当前: 加载中…" style="flex:1;" />
           <button type="button" onclick="saveCompressKey()" style="margin-left:8px;padding:6px 14px;font-size:12px;white-space:nowrap;">保存 Key</button>
+          <button type="button" onclick="testDehydrationKey()" style="margin-left:4px;padding:6px 12px;font-size:12px;white-space:nowrap;">测试</button>
           <span id="dehy-key-msg" style="margin-left:8px;font-size:11px;"></span>
         </div>
         <div style="margin-top:-4px;margin-bottom:12px;padding-left:122px;font-size:11px;color:var(--text-light);">留空不改。Key 保存后立即生效并写入 .env（重启持久）。</div>
@@ -1481,14 +1500,18 @@ async function checkAuth() {
     if (data.setup_needed) {
       document.getElementById('auth-subtitle').textContent = '首次设置';
       document.getElementById('auth-setup-form').style.display = 'block';
+      return false;
     } else if (data.authenticated) {
       document.getElementById('auth-overlay').style.display = 'none';
+      return true;
     } else {
       document.getElementById('auth-subtitle').textContent = '请输入访问密码';
       document.getElementById('auth-login-form').style.display = 'block';
+      return false;
     }
   } catch {
     document.getElementById('auth-overlay').style.display = 'none';
+    return true;
   }
 }
 
@@ -1606,31 +1629,40 @@ async function saveSecurityQuestion() {
 }
 
 // --- Cloudflare Tunnel ---
+function _setTunnelUI(running, statusText, color, btnText, errText) {
+  const dot = document.getElementById('tunnel-status-dot');
+  const txt = document.getElementById('tunnel-status-text');
+  const btn = document.getElementById('tunnel-toggle-btn');
+  const errBox = document.getElementById('tunnel-error-box');
+  if (dot) { dot.style.background = color; }
+  if (txt) { txt.style.color = color; txt.textContent = statusText; }
+  if (btn) { btn.textContent = btnText; btn.disabled = false; }
+  if (errBox) {
+    if (errText) { errBox.style.display = ''; errBox.textContent = errText; }
+    else { errBox.style.display = 'none'; errBox.textContent = ''; }
+  }
+}
+
 async function loadTunnelStatus() {
   const resp = await authFetch('/api/tunnel/status');
   if (!resp || !resp.ok) return;
   const d = await resp.json();
-  const dot = document.getElementById('tunnel-status-dot');
-  const txt = document.getElementById('tunnel-status-text');
-  const btn = document.getElementById('tunnel-toggle-btn');
-  const cb  = document.getElementById('tunnel-autostart');
-  if (d.running) {
-    dot.style.background = 'var(--accent)';
-    txt.textContent = '运行中';
-    btn.textContent = '停止';
-  } else {
-    dot.style.background = 'var(--text-dim)';
-    txt.textContent = '未运行';
-    btn.textContent = '启动';
-  }
+  const cb = document.getElementById('tunnel-autostart');
   if (cb) cb.checked = d.auto_start;
+  if (d.running) {
+    _setTunnelUI(true, '已连接', 'var(--positive, #4caf50)', '停止', '');
+  } else {
+    const err = d.last_error || '';
+    _setTunnelUI(false, err ? '连接失败' : '未运行',
+      err ? 'var(--negative)' : 'var(--text-dim)', '启动', err);
+  }
 }
 
 async function saveTunnelToken() {
   const token = document.getElementById('tunnel-token-input').value.trim();
   const autoStart = document.getElementById('tunnel-autostart').checked;
   const msgEl = document.getElementById('tunnel-msg');
-  if (!token) { msgEl.style.color = 'var(--negative)'; msgEl.textContent = '请输入 Token'; return; }
+  if (!token) { msgEl.style.color = 'var(--negative)'; msgEl.textContent = '请先粘贴 Token'; return; }
   const resp = await authFetch('/api/tunnel/config', {
     method: 'POST',
     headers: {'Content-Type':'application/json'},
@@ -1638,28 +1670,69 @@ async function saveTunnelToken() {
   });
   if (!resp) return;
   if (resp.ok) {
-    msgEl.style.color = 'var(--accent)'; msgEl.textContent = 'Token 已保存';
+    msgEl.style.color = 'var(--accent)'; msgEl.textContent = '✓ Token 已保存，点击"启动"连接';
     document.getElementById('tunnel-token-input').value = '';
+    setTimeout(() => { msgEl.textContent = ''; }, 4000);
   } else {
     msgEl.style.color = 'var(--negative)'; msgEl.textContent = '保存失败';
   }
 }
 
+let _tunnelPollTimer = null;
 async function toggleTunnel() {
   const btn = document.getElementById('tunnel-toggle-btn');
-  const msgEl = document.getElementById('tunnel-msg');
-  const isRunning = btn.textContent === '停止';
-  const url = isRunning ? '/api/tunnel/stop' : '/api/tunnel/start';
+  const isRunning = btn.textContent.trim() === '停止';
   btn.disabled = true;
-  const resp = await authFetch(url, {method: 'POST'});
-  btn.disabled = false;
-  if (!resp) return;
-  if (resp.ok) {
-    msgEl.textContent = '';
-    await loadTunnelStatus();
+  if (_tunnelPollTimer) { clearInterval(_tunnelPollTimer); _tunnelPollTimer = null; }
+
+  if (isRunning) {
+    const resp = await authFetch('/api/tunnel/stop', {method: 'POST'});
+    if (!resp) return;
+    _setTunnelUI(false, '未运行', 'var(--text-dim)', '启动', '');
   } else {
-    const d = await resp.json().catch(() => ({}));
-    msgEl.style.color = 'var(--negative)'; msgEl.textContent = d.error || '操作失败';
+    // Check token set
+    const statusResp = await authFetch('/api/tunnel/status');
+    if (!statusResp) return;
+    const sd = await statusResp.json();
+    if (!sd.token_set) {
+      const msgEl = document.getElementById('tunnel-msg');
+      msgEl.style.color = 'var(--negative)'; msgEl.textContent = '请先填写并保存 Token';
+      btn.disabled = false;
+      return;
+    }
+    _setTunnelUI(false, '连接中…', '#f0a500', '连接中…', '');
+    const resp = await authFetch('/api/tunnel/start', {method: 'POST'});
+    if (!resp) { _setTunnelUI(false, '未运行', 'var(--text-dim)', '启动', ''); return; }
+    if (!resp.ok) {
+      const d = await resp.json().catch(() => ({}));
+      _setTunnelUI(false, '启动失败', 'var(--negative)', '启动', d.error || '启动失败');
+      return;
+    }
+    // Poll for 20s to see if cloudflared stays alive
+    let polls = 0;
+    _tunnelPollTimer = setInterval(async () => {
+      polls++;
+      await loadTunnelStatus();
+      const dot = document.getElementById('tunnel-status-dot');
+      const isConnected = dot && dot.style.background.includes('4caf50');
+      const isFailed = document.getElementById('tunnel-status-text')?.textContent === '连接失败';
+      if (isConnected || isFailed || polls >= 10) {
+        clearInterval(_tunnelPollTimer); _tunnelPollTimer = null;
+      }
+    }, 2000);
+  }
+}
+
+async function testDehydrationKey() {
+  const msgEl = document.getElementById('dehy-key-msg');
+  msgEl.style.color = 'var(--text-dim)'; msgEl.textContent = '测试中…';
+  const resp = await authFetch('/api/test/dehydration', {method: 'POST'});
+  if (!resp) return;
+  const d = await resp.json().catch(() => ({}));
+  if (d.ok) {
+    msgEl.style.color = 'var(--positive, #4caf50)'; msgEl.textContent = d.message || '✓ 连接成功';
+  } else {
+    msgEl.style.color = 'var(--negative)'; msgEl.textContent = '✗ ' + (d.error || '连接失败');
   }
 }
 
@@ -1868,7 +1941,7 @@ async function saveHostVault() {
 async function authFetch(url, options) {
   const resp = await fetch(url, options);
   if (resp.status === 401) {
-    doLogout();
+    checkAuth();
     return null;
   }
   return resp;
@@ -3088,7 +3161,7 @@ async function saveConfig(persist) {
   }
 }
 
-checkAuth().then(() => loadBuckets());
+checkAuth().then(authed => { if (authed) loadBuckets(); });
 
 // ====== iter 1.7: version badge, plan kanban, about page ======
 async function loadVersionBadge() {
