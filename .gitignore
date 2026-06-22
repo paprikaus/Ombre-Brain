@@ -39,6 +39,7 @@ tmp/
 diag*.py
 fix_key.py
 check_cfg.py
+start_stdio.sh
 
 # Ollama 模型权重 —— 体积大，不上传
 ollama/
