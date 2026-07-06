@@ -134,6 +134,8 @@ except (ValueError, TypeError):
     logger.warning("端口配置不是合法整数，回退到 18001")
     OMBRE_PORT = 18001
 
+OMBRE_HOST = os.environ.get("OMBRE_HOST", "0.0.0.0").strip() or "0.0.0.0"
+
 # OMBRE_HOOK_URL: 在 breath/dream 被调用后推送事件到该 URL（POST JSON）。
 # OMBRE_HOOK_SKIP: 设为 true/1/yes 跳过推送。详见 ENV_VARS.md。
 # _fire_webhook 每次调用直接读 os.environ（不缓存模块常量）——这样 dashboard 的
@@ -316,12 +318,12 @@ _gh_auto_interval: int = int(_gh_cfg.get("auto_interval_minutes") or 0)
 # 全部挂在 mcp 主实例上。
 mcp = FastMCP(
     "Ombre Brain",
-    host="0.0.0.0",
+    host=OMBRE_HOST,
     port=OMBRE_PORT,
 )
 mcp_extra = FastMCP(
     "Ombre Brain Extra",
-    host="0.0.0.0",
+    host=OMBRE_HOST,
     port=OMBRE_PORT,
 )
 
@@ -1038,7 +1040,7 @@ if __name__ == "__main__":
             logger.info("MCP OAuth middleware enabled / MCP OAuth 中间件已启用")
         else:
             logger.info("MCP auth disabled (mcp_require_auth: false) — open access / MCP 认证已关闭，所有客户端可直连")
-        uvicorn.run(_app, host="0.0.0.0", port=OMBRE_PORT)
+        uvicorn.run(_app, host=OMBRE_HOST, port=OMBRE_PORT)
     else:
         # stdio：工具已在启动入口处统一回灌进 mcp（12 个全暴露），这里直接跑。
         mcp.run(transport=transport)
