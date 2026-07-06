@@ -46,6 +46,7 @@ import yaml
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from mcp.server.fastmcp import FastMCP
+from mcp.server.transport_security import TransportSecuritySettings
 
 from bucket_manager import BucketManager
 from dehydrator import Dehydrator
@@ -135,6 +136,27 @@ except (ValueError, TypeError):
     OMBRE_PORT = 18001
 
 OMBRE_HOST = os.environ.get("OMBRE_HOST", "0.0.0.0").strip() or "0.0.0.0"
+_DEFAULT_ALLOWED_HOSTS = ["127.0.0.1:*", "localhost:*", "[::1]:*"]
+_allowed_hosts_raw = os.environ.get("OMBRE_ALLOWED_HOSTS", "")
+OMBRE_ALLOWED_HOSTS = _DEFAULT_ALLOWED_HOSTS + [
+    host.strip() for host in _allowed_hosts_raw.split(",") if host.strip()
+]
+_DEFAULT_ALLOWED_ORIGINS = [
+    "http://127.0.0.1:*",
+    "http://localhost:*",
+    "http://[::1]:*",
+]
+_allowed_origins_raw = os.environ.get("OMBRE_ALLOWED_ORIGINS", "")
+OMBRE_ALLOWED_ORIGINS = _DEFAULT_ALLOWED_ORIGINS + [
+    origin.strip() for origin in _allowed_origins_raw.split(",") if origin.strip()
+]
+OMBRE_TRANSPORT_SECURITY = None
+if OMBRE_HOST in ("127.0.0.1", "localhost", "::1") or _allowed_hosts_raw.strip():
+    OMBRE_TRANSPORT_SECURITY = TransportSecuritySettings(
+        enable_dns_rebinding_protection=True,
+        allowed_hosts=OMBRE_ALLOWED_HOSTS,
+        allowed_origins=OMBRE_ALLOWED_ORIGINS,
+    )
 
 # OMBRE_HOOK_URL: 在 breath/dream 被调用后推送事件到该 URL（POST JSON）。
 # OMBRE_HOOK_SKIP: 设为 true/1/yes 跳过推送。详见 ENV_VARS.md。
@@ -320,11 +342,13 @@ mcp = FastMCP(
     "Ombre Brain",
     host=OMBRE_HOST,
     port=OMBRE_PORT,
+    transport_security=OMBRE_TRANSPORT_SECURITY,
 )
 mcp_extra = FastMCP(
     "Ombre Brain Extra",
     host=OMBRE_HOST,
     port=OMBRE_PORT,
+    transport_security=OMBRE_TRANSPORT_SECURITY,
 )
 
 
